@@ -9,7 +9,16 @@
     <div class="container">
         {% include 'nav.html' %}
         <h1>Thor Application Logs</h1>
-        <table>
+
+        <div class="filter-bar">
+            <span>Filter by level:</span>
+            <a href="{{ url_for('view_logs') }}" class="{{ 'active' if not current_level }}">All</a>
+            {% for level in log_levels %}
+                <a href="{{ url_for('view_logs', level=level) }}" class="{{ 'active' if current_level == level }}">{{ level }}</a>
+            {% endfor %}
+        </div>
+
+        <table id="log-table">
             <thead>
                 <tr>
                     <th style="width: 180px;">Timestamp</th>
@@ -28,7 +37,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="4">No log entries found.</td>
+                    <td colspan="4">No log entries found{% if current_level %} for level '{{ current_level }}'{% endif %}.</td>
                 </tr>
                 {% endfor %}
             </tbody>

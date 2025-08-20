@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SSL Certificate Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/thor_style.css') }}">
+</head>
+<body>
+    <div class="container">
+        {% include 'nav.html' %}
+        <h1>SSL Certificate Manager</h1>
+        
+        <div class="form-container">
+            <h2>Generate New Certificate</h2>
+            <form action="{{ url_for('generate_ssl_cert') }}" method="post">
+                <input type="text" name="common_name" placeholder="e.g., my-service.local" required>
+                <button type="submit" class="btn btn-primary" style="padding: 10px 15px;">Generate &raquo;</button>
+            </form>
+        </div>
+
+        <div class="form-container" style="margin-top: 2em;">
+            <h2>Add Existing Certificate</h2>
+            <form action="{{ url_for('add_ssl_cert') }}" method="post">
+                <textarea name="certificate_pem" rows="8" style="width: 100%; font-family: monospace;" placeholder="Paste your PEM-encoded certificate here...&#10;-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"></textarea>
+                <br><br>
+                <button type="submit" class="btn btn-primary">Add Certificate</button>
+            </form>
+        </div>
+
+        <h2>Tracked Certificates</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Common Name</th>
+                    <th>Issuer</th>
+                    <th>Expires At</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cert in certificates %}
+                <tr class="status-row-{{ cert.status }}">
+                    <td><strong>{{ cert.common_name }}</strong></td>
+                    <td>{{ cert.issuer }}</td>
+                    <td>{{ cert.expires_at }}</td>
+                    <td>
+                        <span class="status-{{ cert.status }}">
+                            {% if cert.status == 'expired' %}
+                                Expired {{ cert.days_left|abs }} days ago
+                            {% elif cert.status == 'expires_soon' %}
+                                Expires in {{ cert.days_left }} days
+                            {% else %}
+                                Expires in {{ cert.days_left }} days
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 5px;">
+                            <a href="{{ url_for('download_stored_cert', cert_id=cert.id) }}" class="btn btn-primary" style="width: auto; padding: 10px;">Download Cert</a>
+                            {% if cert.has_private_key %}
+                                <a href="{{ url_for('download_stored_key', cert_id=cert.id) }}" class="btn btn-primary" style="width: auto; padding: 10px;">Download Key</a>
+                            {% endif %}
+                            <form action="{{ url_for('delete_ssl_cert', cert_id=cert.id) }}" method="post" style="display: inline;">
+                                <button type="submit" class="btn btn-danger">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5">No SSL certificates are being tracked yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <script src="{{ url_for('static', filename='js/thor_script.js') }}"></script>
+</body>
+</html>

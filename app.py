@@ -12,7 +12,9 @@ import queue
 import asyncio
 import time
 import json
-from flask import Flask, render_template, cli, request, redirect, url_for, Response
+import os
+import io
+from flask import Flask, render_template, cli, request, redirect, url_for, Response, send_file, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import JSONB
 from dnslib import DNSRecord, DNSHeader, RR, A, QTYPE
@@ -22,8 +24,16 @@ from pysnmp.entity import engine, config
 from pysnmp.entity.rfc3413 import ntfrcv
 from pysnmp.carrier.asyncio.dgram import udp
 
+# Import cryptography for SSL Manager
+from cryptography import x509
+from cryptography.x509.oid import NameOID
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.backends import default_backend
+
 # --- Flask App and Database Configuration ---
 app = Flask(__name__)
+app.secret_key = os.urandom(24)
 cli.show_server_banner = lambda *args: None
 
 log = logging.getLogger('werkzeug')
@@ -55,15 +65,24 @@ class ThorLog(db.Model):
     level = db.Column(db.String(20))
     message = db.Column(db.Text)
 
-# --- MODIFIED: Message Broker to support SSE broadcasting ---
+class SslCertificate(db.Model):
+    __tablename__ = 'ssl_certificates'
+    id = db.Column(db.Integer, primary_key=True)
+    common_name = db.Column(db.String(255), index=True)
+    issuer = db.Column(db.String(255))
+    expires_at = db.Column(db.DateTime, index=True)
+    certificate_blob = db.Column(db.LargeBinary, nullable=False)
+    private_key_blob = db.Column(db.LargeBinary, nullable=True) # Stored key
+    added_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
+# --- Message Broker to support SSE broadcasting ---
 class MessageBroker:
     def __init__(self):
         self._queues = {}
         self._lock = threading.Lock()
         self.published_stats = {}
         self.consumed_stats = {}
-        self.listeners = [] # For SSE clients
-
+        self.listeners = []
     def subscribe(self, queue_name):
         with self._lock:
             if queue_name not in self._queues:
@@ -71,20 +90,13 @@ class MessageBroker:
                 self.published_stats.setdefault(queue_name, 0)
                 self.consumed_stats.setdefault(queue_name, 0)
                 logging.info(f"Queue '{queue_name}' created.")
-
     def publish(self, queue_name, message, event_type=None):
-        """Publishes a message to a main queue and broadcasts to SSE listeners."""
-        # Publish to the internal queue for workers if it's a main queue
-        if queue_name in self._queues:
+        if queue_name and queue_name in self._queues:
             self._queues[queue_name].put(message)
             self.published_stats[queue_name] += 1
-        
-        # Broadcast the event to any listening web clients
         if event_type:
             sse_data = f"event: {event_type}\ndata: {json.dumps(message)}\n\n"
-            for q in self.listeners:
-                q.put(sse_data)
-
+            for q in self.listeners: q.put(sse_data)
     def get_message(self, queue_name, block=True, timeout=None):
         if queue_name not in self._queues: return None
         try:
@@ -92,26 +104,14 @@ class MessageBroker:
             if message: self.consumed_stats[queue_name] += 1
             return message
         except queue.Empty: return None
-        
-    def add_listener(self, listener_queue):
-        self.listeners.append(listener_queue)
-
+    def add_listener(self, listener_queue): self.listeners.append(listener_queue)
     def remove_listener(self, listener_queue):
-        if listener_queue in self.listeners:
-            self.listeners.remove(listener_queue)
-
+        if listener_queue in self.listeners: self.listeners.remove(listener_queue)
     def get_stats(self):
         stats = []
         with self._lock:
-            # We add listener queues to the stats display for debugging
-            queue_names = list(self._queues.keys()) + [f"listener_{i}" for i, _ in enumerate(self.listeners)]
-            for name in queue_names:
-                if name.startswith('listener'):
-                    q = self.listeners[int(name.split('_')[1])]
-                    stats.append({'name': name, 'size': q.qsize(), 'published': 'N/A', 'consumed': 'N/A'})
-                else:
-                    q = self._queues[name]
-                    stats.append({'name': name, 'size': q.qsize(), 'published': self.published_stats.get(name, 0), 'consumed': self.consumed_stats.get(name, 0)})
+            for name, q in self._queues.items():
+                stats.append({'name': name, 'size': q.qsize(), 'published': self.published_stats.get(name, 0), 'consumed': self.consumed_stats.get(name, 0)})
         return stats
 
 message_broker = MessageBroker()
@@ -124,14 +124,7 @@ class DatabaseLogHandler(logging.Handler):
                 log_entry = ThorLog(thread_name=record.threadName, level=record.levelname, message=self.format(record))
                 db.session.add(log_entry)
                 db.session.commit()
-                # Broadcast the new log entry as an SSE event
-                event_data = {
-                    'timestamp': log_entry.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                    'level': log_entry.level,
-                    'thread_name': log_entry.thread_name,
-                    'message': log_entry.message
-                }
-                # Publish only as an event, not to another main queue
+                event_data = {'timestamp': log_entry.timestamp.strftime('%Y-%m-%d %H:%M:%S'), 'level': log_entry.level, 'thread_name': log_entry.thread_name, 'message': log_entry.message }
                 message_broker.publish(None, event_data, event_type='new_log')
             except Exception:
                 db.session.rollback()
@@ -155,13 +148,7 @@ class ServiceManager:
         self._lock = threading.Lock()
     def register(self, name, target, thread_name):
         with self._lock:
-            self.services[name] = {
-                'target': target,
-                'thread_name': thread_name,
-                'thread': None,
-                'stop_event': None,
-                'loop': None
-            }
+            self.services[name] = { 'target': target, 'thread_name': thread_name, 'thread': None, 'stop_event': None, 'loop': None }
             logging.info(f"Service '{name}' registered.")
     def start(self, name):
         with self._lock:
@@ -169,12 +156,7 @@ class ServiceManager:
             if service and (service['thread'] is None or not service['thread'].is_alive()):
                 logging.info(f"Starting service: {name}")
                 service['stop_event'] = threading.Event()
-                service['thread'] = threading.Thread(
-                    target=service['target'],
-                    name=service['thread_name'],
-                    args=(service['stop_event'],),
-                    daemon=True
-                )
+                service['thread'] = threading.Thread(target=service['target'], name=service['thread_name'], args=(service['stop_event'],), daemon=True)
                 service['thread'].start()
                 return True
         logging.warning(f"Service '{name}' is already running or not registered.")
@@ -192,21 +174,60 @@ class ServiceManager:
         logging.warning(f"Service '{name}' is not running or not registered.")
         return False
     def start_all(self):
-        for name in self.services:
-            self.start(name)
+        for name in self.services: self.start(name)
     def get_status(self):
         status = []
         with self._lock:
             for name, service in self.services.items():
-                status.append({
-                    'name': name,
-                    'is_alive': service['thread'] is not None and service['thread'].is_alive()
-                })
+                status.append({ 'name': name, 'is_alive': service['thread'] is not None and service['thread'].is_alive() })
         return status
 
 service_manager = ServiceManager()
 
-# --- NEW: SSE Event Stream Generator ---
+# --- SSL Certificate Generation Logic ---
+CERT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'certs')
+CA_KEY_FILE = os.path.join(CERT_DIR, 'ca_key.pem')
+CA_CERT_FILE = os.path.join(CERT_DIR, 'ca_cert.pem')
+
+def get_or_create_ca():
+    os.makedirs(CERT_DIR, exist_ok=True)
+    if os.path.exists(CA_KEY_FILE) and os.path.exists(CA_CERT_FILE):
+        with open(CA_KEY_FILE, 'rb') as f:
+            ca_key = serialization.load_pem_private_key(f.read(), password=None, backend=default_backend())
+        with open(CA_CERT_FILE, 'rb') as f:
+            ca_cert = x509.load_pem_x509_certificate(f.read(), default_backend())
+        return ca_key, ca_cert
+    logging.info("Generating new CA key and certificate...")
+    ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
+    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, u"Thor_Private_CA")])
+    ca_cert = (x509.CertificateBuilder()
+        .subject_name(subject).issuer_name(issuer).public_key(ca_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.datetime.utcnow())
+        .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=3650))
+        .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+        .sign(ca_key, hashes.SHA256(), default_backend()))
+    with open(CA_KEY_FILE, 'wb') as f:
+        f.write(ca_key.private_bytes(encoding=serialization.Encoding.PEM, format=serialization.PrivateFormat.TraditionalOpenSSL, encryption_algorithm=serialization.NoEncryption()))
+    with open(CA_CERT_FILE, 'wb') as f:
+        f.write(ca_cert.public_bytes(serialization.Encoding.PEM))
+    return ca_key, ca_cert
+
+def generate_certificate(common_name, ca_key, ca_cert):
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
+    subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, common_name)])
+    cert = (x509.CertificateBuilder()
+        .subject_name(subject).issuer_name(ca_cert.subject).public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.datetime.utcnow())
+        .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=365))
+        .add_extension(x509.SubjectAlternativeName([x509.DNSName(common_name)]), critical=False)
+        .sign(ca_key, hashes.SHA256(), default_backend()))
+    key_pem = key.private_bytes(encoding=serialization.Encoding.PEM, format=serialization.PrivateFormat.TraditionalOpenSSL, encryption_algorithm=serialization.NoEncryption())
+    cert_pem = cert.public_bytes(serialization.Encoding.PEM)
+    return key_pem, cert_pem
+
+# --- SSE Event Stream Generator ---
 def sse_event_stream():
     q = queue.Queue()
     message_broker.add_listener(q)
@@ -222,17 +243,10 @@ def run_trap_receiver(stop_event):
     logging.info("SNMP Server starting (asyncio)...")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
     service_manager.services['SNMP Trap Receiver']['loop'] = loop
-
     snmpEngine = engine.SnmpEngine()
-    config.add_transport(
-        snmpEngine,
-        udp.DOMAIN_NAME,
-        udp.UdpTransport().open_server_mode(('0.0.0.0', 162))
-    )
+    config.add_transport(snmpEngine, udp.DOMAIN_NAME, udp.UdpTransport().open_server_mode(('0.0.0.0', 162)))
     config.add_v1_system(snmpEngine, 'my-community', 'public')
-
     def cbFun(snmpEngine, stateReference, contextEngineId, contextName, varBinds, cbCtx):
         transportDomain, transportAddress = snmpEngine.message_dispatcher.get_transport_info(stateReference)
         source_ip = transportAddress[0]
@@ -240,9 +254,7 @@ def run_trap_receiver(stop_event):
         trap_message = {'source_ip': source_ip, 'varbinds': varbinds_list}
         message_broker.publish('snmp_traps', trap_message)
         logging.info("Trap from %s published.", source_ip)
-    
     ntfrcv.NotificationReceiver(snmpEngine, cbFun)
-
     try:
         snmpEngine.transport_dispatcher.run_dispatcher()
     finally:
@@ -261,12 +273,7 @@ def db_writer_worker(stop_event):
                     db.session.add(new_trap)
                     db.session.commit()
                     logging.info("Trap from %s written to database.", trap_message['source_ip'])
-                    event_data = {
-                        'id': new_trap.id,
-                        'received_at': new_trap.received_at.strftime('%Y-%m-%d %H:%M:%S'),
-                        'source_ip': new_trap.source_ip,
-                        'varbinds': new_trap.varbinds
-                    }
+                    event_data = {'id': new_trap.id, 'received_at': new_trap.received_at.strftime('%Y-%m-%d %H:%M:%S'), 'source_ip': new_trap.source_ip, 'varbinds': new_trap.varbinds }
                     message_broker.publish(None, event_data, event_type='new_trap')
             except Exception as e:
                 logging.error("DB writer failed: %s", e, exc_info=True)
@@ -307,32 +314,58 @@ def run_dns_server(stop_event):
 
 # --- Flask Routes ---
 @app.route('/')
-def index(): 
-    return render_template('thor.html', active_page='index')
-    
+def index(): return render_template('thor.html', active_page='index')
 @app.route('/traps')
 def traps():
     traps = SNMPTrap.query.order_by(SNMPTrap.received_at.desc()).limit(200).all()
     return render_template('traps.html', traps=traps, active_page='traps')
-
 @app.route('/dns')
 def dns_records():
     records = DnsRecord.query.order_by(DnsRecord.domain).all()
     return render_template('dns.html', records=records, active_page='dns')
-
 @app.route('/broker')
 def broker_status():
     stats = message_broker.get_stats()
     return render_template('message_broker.html', stats=stats, active_page='broker')
-
 @app.route('/logs')
 def view_logs():
-    logs = ThorLog.query.order_by(ThorLog.timestamp.desc()).limit(200).all()
-    return render_template('thor_logs.html', logs=logs, active_page='logs')
+    # --- MODIFIED: Added filtering logic ---
+    log_levels = ['INFO', 'WARNING', 'ERROR', 'CRITICAL']
+    selected_level = request.args.get('level')
 
+    query = ThorLog.query
+
+    if selected_level and selected_level in log_levels:
+        query = query.filter_by(level=selected_level)
+
+    logs = query.order_by(ThorLog.timestamp.desc()).limit(200).all()
+    
+    return render_template(
+        'thor_logs.html',
+        logs=logs,
+        log_levels=log_levels,
+        current_level=selected_level,
+        active_page='logs'
+    )
 @app.route('/services')
 def view_services():
     return render_template('service_manager.html', services=service_manager.get_status(), active_page='services')
+@app.route('/ssl')
+def ssl_manager():
+    now = datetime.datetime.utcnow()
+    certs_from_db = SslCertificate.query.order_by(SslCertificate.expires_at).all()
+    certificates = []
+    for cert in certs_from_db:
+        days_left = (cert.expires_at - now).days
+        status = "valid"
+        if days_left <= 0: status = "expired"
+        elif days_left <= 30: status = "expires_soon"
+        certificates.append({
+            'id': cert.id, 'common_name': cert.common_name, 'issuer': cert.issuer,
+            'expires_at': cert.expires_at.strftime('%Y-%m-%d'), 'days_left': days_left, 'status': status,
+            'has_private_key': cert.private_key_blob is not None
+        })
+    return render_template('ssl_manager.html', certificates=certificates, active_page='ssl')
 
 @app.route('/getTime')
 def get_time():
@@ -341,7 +374,9 @@ def get_time():
     logging.info(f"Browser time ping: {browser_time}")
     logging.info(f"Server time at ping: {server_time}")
     return '', 204
-
+@app.route('/stream')
+def stream():
+    return Response(sse_event_stream(), mimetype="text/event-stream")
 @app.route('/service/start/<service_name>', methods=['POST'])
 def start_service(service_name):
     service_manager.start(service_name)
@@ -350,7 +385,11 @@ def start_service(service_name):
 def stop_service(service_name):
     service_manager.stop(service_name)
     return redirect(url_for('view_services'))
-
+@app.route('/ca.pem')
+def download_ca_cert():
+    """Provides the CA's public certificate for download."""
+    logging.info(f"CA certificate downloaded by {request.remote_addr}")
+    return send_file(CA_CERT_FILE, as_attachment=True, download_name='Thor_CA.pem')
 @app.route('/dns/add', methods=['POST'])
 def add_dns_record():
     domain = request.form.get('domain')
@@ -371,10 +410,69 @@ def delete_dns_record(record_id):
     db.session.commit()
     return redirect(url_for('dns_records'))
 
-# --- NEW: Flask Route for the SSE Stream ---
-@app.route('/stream')
-def stream():
-    return Response(sse_event_stream(), mimetype="text/event-stream")
+@app.route('/ssl/add', methods=['POST'])
+def add_ssl_cert():
+    pem_data = request.form.get('certificate_pem')
+    if not pem_data: return redirect(url_for('ssl_manager'))
+    try:
+        cert_bytes = pem_data.encode('utf-8')
+        cert = x509.load_pem_x509_certificate(cert_bytes, default_backend())
+        common_name = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
+        issuer_cn = cert.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
+        expires_at = cert.not_valid_after_utc
+        new_cert = SslCertificate(common_name=common_name, issuer=issuer_cn, expires_at=expires_at, certificate_blob=cert_bytes)
+        db.session.add(new_cert)
+        db.session.commit()
+        logging.info(f"Added new SSL certificate for {common_name}")
+    except Exception as e:
+        logging.error(f"Failed to parse or add SSL certificate: {e}", exc_info=True)
+    return redirect(url_for('ssl_manager'))
+
+@app.route('/ssl/generate', methods=['POST'])
+def generate_ssl_cert():
+    common_name = request.form.get('common_name')
+    if not common_name: return redirect(url_for('ssl_manager'))
+    try:
+        ca_key, ca_cert = get_or_create_ca()
+        key_pem_bytes, cert_pem_bytes = generate_certificate(common_name, ca_key, ca_cert)
+        cert_obj = x509.load_pem_x509_certificate(cert_pem_bytes, default_backend())
+        new_cert_db = SslCertificate(
+            common_name=common_name,
+            issuer=cert_obj.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value,
+            expires_at=cert_obj.not_valid_after_utc,
+            certificate_blob=cert_pem_bytes,
+            private_key_blob=key_pem_bytes
+        )
+        db.session.add(new_cert_db)
+        db.session.commit()
+        logging.info(f"Generated and stored new SSL certificate and key for {common_name}")
+    except Exception as e:
+        logging.error(f"Failed to generate certificate: {e}", exc_info=True)
+    return redirect(url_for('ssl_manager'))
+    
+@app.route('/ssl/download/stored_cert/<int:cert_id>')
+def download_stored_cert(cert_id):
+    cert = SslCertificate.query.get_or_404(cert_id)
+    filename = f"{cert.common_name.replace('*.', '_wildcard_')}.pem"
+    buffer = io.BytesIO(cert.certificate_blob)
+    return send_file(buffer, as_attachment=True, download_name=filename, mimetype='application/x-x509-ca-cert')
+
+@app.route('/ssl/download/stored_key/<int:cert_id>')
+def download_stored_key(cert_id):
+    cert = SslCertificate.query.get_or_404(cert_id)
+    if not cert.private_key_blob:
+        return "No private key stored for this certificate.", 404
+    filename = f"{cert.common_name.replace('*.', '_wildcard_')}.key"
+    buffer = io.BytesIO(cert.private_key_blob)
+    return send_file(buffer, as_attachment=True, download_name=filename, mimetype='application/octet-stream')
+
+@app.route('/ssl/delete/<int:cert_id>', methods=['POST'])
+def delete_ssl_cert(cert_id):
+    cert = SslCertificate.query.get_or_404(cert_id)
+    logging.info(f"Deleting SSL certificate for {cert.common_name} (ID: {cert.id})")
+    db.session.delete(cert)
+    db.session.commit()
+    return redirect(url_for('ssl_manager'))
 
 # --- CLI command to initialize the database ---
 @app.cli.command("init-db")

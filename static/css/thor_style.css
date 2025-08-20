@@ -138,3 +138,42 @@ input[type="text"] {
 .log-level-WARNING { color: #ffc107; font-weight: bold; }
 .log-level-ERROR { color: #dc3545; font-weight: bold; }
 .log-level-CRITICAL { color: #dc3545; font-weight: bold; background-color: #f8d7da; }
+
+/* --- SSL Manager Status Colors --- */
+.status-valid { color: #28a745; }
+.status-expires_soon { color: #ffc107; font-weight: bold; }
+.status-expired { color: #dc3545; font-weight: bold; }
+.status-row-expires_soon { background-color: #fff3cd !important; }
+.status-row-expired { background-color: #f8d7da !important; }
+
+/* --- Filter Bar Styles --- */
+.filter-bar {
+    background-color: #e9ecef;
+    padding: 10px 15px;
+    border-radius: 5px;
+    margin-top: 1.5em;
+    font-family: sans-serif;
+}
+.dark-theme .filter-bar {
+    background-color: #333;
+}
+.filter-bar span {
+    margin-right: 15px;
+    font-weight: bold;
+}
+.filter-bar a {
+    text-decoration: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    margin-right: 5px;
+    background-color: #ccc;
+    color: #333;
+}
+.dark-theme .filter-bar a {
+    background-color: #555;
+    color: #eee;
+}
+.filter-bar a.active {
+    background-color: #007bff;
+    color: white;
+}
