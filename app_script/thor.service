@@ -1,0 +1,28 @@
+# sudo nano /etc/systemd/system/thor.service
+
+[Unit]
+Description=Thor Application Service
+After=network.target
+
+[Service]
+# Replace 'm4573rn3rd' with your username
+User=m4573rn3rd
+Group=m4573rn3rd
+
+# The directory where your app.py is located
+WorkingDirectory=/home/m4573rn3rd/code/Thor
+
+# The command to start the application using the venv's Gunicorn
+ExecStart=/home/m4573rn3rd/code/Thor/venv/bin/gunicorn --workers 3 --bind 0.0.0.0:5000 app:app
+
+# Restart the service if it fails
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+##
+sudo systemctl daemon-reload
+sudo systemctl enable thor
+sudo systemctl start thor
+sudo systemctl status thor

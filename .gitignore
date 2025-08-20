@@ -24,3 +24,7 @@ instance/
 # IDE-specific folders
 .idea/
 .vscode/
+
+# Standalone builds
+standalone/
+.standalone/
