@@ -3,34 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <title>Service Manager</title>
-    <style>
-        body { font-family: sans-serif; margin: 2em; background-color: #f4f4f9; color: #333; }
-        .container { max-width: 960px; margin: auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        h1 { color: #444; }
-        table { width: 100%; border-collapse: collapse; margin-top: 2em; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: middle;}
-        th { background-color: #007bff; color: white; }
-        .status-running { color: #28a745; font-weight: bold; }
-        .status-stopped { color: #dc3545; font-weight: bold; }
-        .nav { margin-bottom: 2em; border-bottom: 1px solid #eee; padding-bottom: 1em;}
-        .nav a { text-decoration: none; padding: 8px 15px; background: #6c757d; color: white; border-radius: 4px; margin-right: 10px;}
-        .nav a.active { background: #007bff; }
-        .btn { padding: 5px 10px; border-radius: 4px; border: 1px solid; cursor: pointer; width: 60px; text-align: center;}
-        .btn-start { background-color: #28a745; color: white; border-color: #28a745; }
-        .btn-stop { background-color: #dc3545; color: white; border-color: #dc3545; }
-        .btn:disabled { background-color: #6c757d; border-color: #6c757d; color: #ccc; cursor: not-allowed;}
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/thor_style.css') }}">
 </head>
 <body>
     <div class="container">
-        <div class="nav">
-            <a href="{{ url_for('index') }}">Dashboard</a>
-            <a href="{{ url_for('traps') }}">SNMP Traps</a>
-            <a href="{{ url_for('dns_records') }}">DNS Management</a>
-            <a href="{{ url_for('broker_status') }}">Broker Status</a>
-            <a href="{{ url_for('view_logs') }}">App Logs</a>
-            <a href="{{ url_for('view_services') }}" class="active">Service Manager</a>
-        </div>
+        {% include 'nav.html' %}
         <h1>Background Service Manager</h1>
         <table>
             <thead>
@@ -64,5 +41,6 @@
             </tbody>
         </table>
     </div>
+    <script src="{{ url_for('static', filename='js/thor_script.js') }}"></script>
 </body>
 </html>

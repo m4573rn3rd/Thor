@@ -2,44 +2,38 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>SNMP Trap Receiver</title>
-    <style>
-        body { font-family: sans-serif; margin: 2em; background-color: #f4f4f9; color: #333; }
-        h1 { color: #444; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
-        th { background-color: #007bff; color: white; }
-        tr:nth-child(even) { background-color: #f2f2f2; }
-        pre { background-color: #eee; padding: 10px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }
-    </style>
+    <title>SNMP Traps</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/thor_style.css') }}">
 </head>
 <body>
-    <h1>Received SNMP Traps</h1>
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Received At (UTC)</th>
-                <th>Source IP</th>
-                <th>Payload (VarBinds)</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for trap in traps %}
-            <tr>
-                <td>{{ trap.id }}</td>
-                <td>{{ trap.received_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                <td>{{ trap.source_ip }}</td>
-                <td>
-                    <pre>{% for varbind in trap.varbinds %}OID: {{ varbind.oid }}\nValue: {{ varbind.value }}\n\n{% endfor %}</pre>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="4">No traps received yet.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="container">
+        {% include 'nav.html' %}
+        <h1>Received SNMP Traps</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Received At (UTC)</th>
+                    <th>Source IP</th>
+                    <th>Payload (VarBinds)</th>
+                </tr>
+            </thead>
+            <tbody id="traps-table-body">
+                {% for trap in traps %}
+                <tr>
+                    <td>{{ trap.id }}</td>
+                    <td>{{ trap.received_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>{{ trap.source_ip }}</td>
+                    <td><pre>{% for varbind in trap.varbinds %}OID: {{ varbind.oid }}\nValue: {{ varbind.value }}\n\n{% endfor %}</pre></td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4">No traps received yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <script src="{{ url_for('static', filename='js/thor_script.js') }}"></script>
 </body>
 </html>

@@ -85,7 +85,7 @@ rm -rf __pycache__ venv
 python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip &> /dev/null
-pip install pysnmp flask flask-sqlalchemy psycopg2-binary dnslib
+pip install pysnmp flask flask-sqlalchemy psycopg2-binary dnslib  
 
 # Initialize the database tables
 echo "Creating database tables..."

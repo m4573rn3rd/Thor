@@ -3,31 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <title>Thor Application Logs</title>
-    <style>
-        body { font-family: monospace; margin: 2em; background-color: #1e1e1e; color: #d4d4d4; }
-        .container { max-width: 1200px; margin: auto; background: #252526; padding: 2em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
-        h1 { color: #9cdcfe; }
-        table { width: 100%; border-collapse: collapse; margin-top: 2em; font-size: 0.9em; }
-        th, td { border: 1px solid #444; padding: 8px; text-align: left; vertical-align: top; }
-        th { background-color: #333; color: #d4d4d4; }
-        .log-level-INFO { color: #4ec9b0; }
-        .log-level-WARNING { color: #ffd700; font-weight: bold; }
-        .log-level-ERROR { color: #f44747; font-weight: bold; }
-        .log-level-CRITICAL { color: #ff00ff; font-weight: bold; background-color: #5c1d1d;}
-        .nav { margin-bottom: 2em; border-bottom: 1px solid #444; padding-bottom: 1em; font-family: sans-serif;}
-        .nav a { text-decoration: none; padding: 8px 15px; background: #6c757d; color: white; border-radius: 4px; margin-right: 10px;}
-        .nav a.active { background: #007bff; }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/thor_style.css') }}">
 </head>
-<body>
+<body class="dark-theme">
     <div class="container">
-        <div class="nav">
-            <a href="{{ url_for('index') }}">Dashboard</a>
-            <a href="{{ url_for('traps') }}">SNMP Traps</a>
-            <a href="{{ url_for('dns_records') }}">DNS Management</a>
-            <a href="{{ url_for('broker_status') }}">Broker Status</a>
-            <a href="{{ url_for('view_logs') }}" class="active">App Logs</a>
-        </div>
+        {% include 'nav.html' %}
         <h1>Thor Application Logs</h1>
         <table>
             <thead>
@@ -38,7 +18,7 @@
                     <th>Message</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="logs-table-body">
                 {% for log in logs %}
                 <tr>
                     <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
@@ -54,5 +34,6 @@
             </tbody>
         </table>
     </div>
+    <script src="{{ url_for('static', filename='js/thor_script.js') }}"></script>
 </body>
 </html>

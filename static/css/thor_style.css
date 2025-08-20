@@ -1,0 +1,140 @@
+/* --- General Layout & Theme --- */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 2em;
+    background-color: #f4f4f9;
+    color: #333;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.container {
+    max-width: 1200px;
+    margin: auto;
+    background: white;
+    padding: 2em;
+    border-radius: 8px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.1);
+}
+
+h1, h2 {
+    color: #444;
+}
+
+/* --- Navigation Bar --- */
+.nav {
+    margin-bottom: 2em;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 1em;
+    font-family: sans-serif;
+}
+.nav a {
+    text-decoration: none;
+    padding: 8px 15px;
+    background: #6c757d;
+    color: white;
+    border-radius: 4px;
+    margin-right: 10px;
+    transition: background-color 0.2s;
+}
+.nav a:hover {
+    background-color: #5a6268;
+}
+.nav a.active {
+    background-color: #007bff;
+}
+
+/* --- Tables --- */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 2em;
+    font-size: 0.9em;
+}
+th, td {
+    padding: 12px;
+    border: 1px solid #ddd;
+    text-align: left;
+    vertical-align: top;
+}
+th {
+    background-color: #007bff;
+    color: white;
+}
+tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+td pre {
+    background-color: #eee;
+    padding: 10px;
+    border-radius: 5px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* --- Dashboard Cards --- */
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5em;
+}
+.card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 1.5em;
+    text-decoration: none;
+    color: #333;
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+    display: block;
+}
+.card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transform: translateY(-5px);
+}
+.card h2 {
+    margin-top: 0;
+    color: #007bff;
+}
+.card p {
+    color: #666;
+    font-size: 0.9em;
+    line-height: 1.5;
+}
+
+/* --- Forms & Buttons --- */
+.form-container {
+    background: #f9f9f9;
+    padding: 1.5em;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+}
+input[type="text"] {
+    width: calc(50% - 22px);
+    padding: 10px;
+    margin-right: 10px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+}
+.btn {
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 1px solid;
+    cursor: pointer;
+    width: auto;
+    text-align: center;
+    color: white;
+}
+.btn-primary { background-color: #28a745; border-color: #28a745; padding: 10px 15px;}
+.btn-danger { background-color: #dc3545; border-color: #dc3545; padding: 10px 15px;}
+.btn-start { background-color: #28a745; border-color: #28a745; width: 60px;}
+.btn-stop { background-color: #dc3545; border-color: #dc3545; width: 60px;}
+.btn:disabled { background-color: #6c757d; border-color: #6c757d; color: #ccc; cursor: not-allowed;}
+
+/* --- Log Page Specific Styles --- */
+#log-table {
+    font-family: monospace;
+    font-size: 0.85em; /* Monospace fonts can appear larger */
+}
+.log-level-INFO { color: #17a2b8; }
+.log-level-WARNING { color: #ffc107; font-weight: bold; }
+.log-level-ERROR { color: #dc3545; font-weight: bold; }
+.log-level-CRITICAL { color: #dc3545; font-weight: bold; background-color: #f8d7da; }
