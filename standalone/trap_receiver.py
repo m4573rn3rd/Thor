@@ -16,7 +16,7 @@ Session = sessionmaker(bind=db_engine)
 def cbFun(snmpEngine, stateReference, contextEngineId, contextName, varBinds, cbCtx):
     print("--- New Trap Received ---")
     # This is the corrected line
-    transportDomain, transportAddress = snmpEngine.message_dispatcher.get_transport_info(stateReference) # <--- FINAL FIX
+    transportDomain, transportAddress = snmpEngine.message_dispatcher.get_transport_info(stateReference) 
     source_ip = transportAddress[0]
     print(f"Source IP: {source_ip}")
 

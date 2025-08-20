@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Message Broker Status</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; background-color: #f4f4f9; color: #333; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1 { color: #444; }
+        table { width: 100%; border-collapse: collapse; margin-top: 2em; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #007bff; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        .nav { margin-bottom: 2em; border-bottom: 1px solid #eee; padding-bottom: 1em;}
+        .nav a { text-decoration: none; padding: 8px 15px; background: #6c757d; color: white; border-radius: 4px; margin-right: 10px;}
+        .nav a.active { background: #007bff; }
+        td.queue-name { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            <a href="{{ url_for('index') }}">SNMP Traps</a>
+            <a href="{{ url_for('dns_records') }}">DNS Management</a>
+            <a href="{{ url_for('broker_status') }}" class="active">Broker Status</a>
+        </div>
+        <h1>Message Broker Status</h1>
+        <p>This page shows the real-time status of the internal message queues.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Queue Name</th>
+                    <th>Items Currently in Queue</th>
+                    <th>Total Messages Published</th>
+                    <th>Total Messages Consumed</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for queue in stats %}
+                <tr>
+                    <td class="queue-name">{{ queue.name }}</td>
+                    <td>{{ queue.size }}</td>
+                    <td>{{ queue.published }}</td>
+                    <td>{{ queue.consumed }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4">No queues have been created yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

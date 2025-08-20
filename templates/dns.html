@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DNS Record Management</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; background-color: #f4f4f9; color: #333; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #444; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 2em; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #007bff; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        .form-container { background: #f9f9f9; padding: 1.5em; border-radius: 5px; border: 1px solid #ddd; }
+        input[type="text"] { width: calc(50% - 22px); padding: 10px; margin-right: 10px; border-radius: 4px; border: 1px solid #ccc; }
+        .btn { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; color: white; }
+        .btn-primary { background-color: #28a745; }
+        .btn-danger { background-color: #dc3545; }
+        .nav { margin-bottom: 2em; }
+        .nav a { text-decoration: none; padding: 8px 15px; background: #6c757d; color: white; border-radius: 4px; margin-right: 10px;}
+        .nav a.active { background: #007bff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            <a href="{{ url_for('index') }}">SNMP Traps</a>
+            <a href="{{ url_for('dns_records') }}" class="active">DNS Management</a>
+        </div>
+        <h1>DNS Record Management</h1>
+
+        <h2>Current Records</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Domain</th>
+                    <th>IP Address</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in records %}
+                <tr>
+                    <td>{{ record.domain }}</td>
+                    <td>{{ record.ip_address }}</td>
+                    <td>
+                        <form action="{{ url_for('delete_dns_record', record_id=record.id) }}" method="post" style="display:inline;">
+                            <button type="submit" class="btn btn-danger">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3">No DNS records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="form-container">
+            <h2>Add New Record</h2>
+            <form action="{{ url_for('add_dns_record') }}" method="post">
+                <input type="text" name="domain" placeholder="example.com" required>
+                <input type="text" name="ip_address" placeholder="192.168.1.10" required>
+                <button type="submit" class="btn btn-primary">Add Record</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
