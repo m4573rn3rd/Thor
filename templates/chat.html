@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat with Ziggy</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; }
+        .chatbox { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; }
+        .user { text-align: right; color: blue; }
+        .bot { text-align: left; color: green; }
+        input[type="text"] { width: 80%; padding: 10px; }
+        input[type="submit"] { padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Chat with Ziggy 🤖</h1>
+    <div class="chatbox">
+        {% for message in history %}
+            <p class="{{ 'user' if message.sender == 'You' else 'bot' }}">
+                <b>{{ message.sender }}:</b> {{ message.text }}
+            </p>
+        {% endfor %}
+    </div>
+    <form method="post">
+        <input type="text" name="user_input" placeholder="Say something..." autofocus>
+        <input type="submit" value="Send">
+    </form>
+</body>
+</html>

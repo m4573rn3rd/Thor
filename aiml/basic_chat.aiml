@@ -1,0 +1,25 @@
+<aiml version="1.0" encoding="UTF-8">
+
+    <category>
+        <pattern>HELLO</pattern>
+        <template>Hi there! How can I help you today?</template>
+    </category>
+
+    <category>
+        <pattern>WHAT IS YOUR NAME</pattern>
+        <template>You can call me Ziggy.</template>
+    </category>
+
+    <category>
+        <pattern>MY NAME IS *</pattern>
+        <template>
+            It's nice to meet you, <star index="1"/>.
+        </template>
+    </category>
+
+    <category>
+        <pattern>WHAT IS *</pattern>
+        <template>I am not sure what <star index="1"/> is. I am a simple bot.</template>
+    </category>
+
+</aiml>
